@@ -1,0 +1,664 @@
+{
+  "name": "HR ATS Web Dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "ats-dashboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -368,
+        48
+      ],
+      "id": "6848bed3-044e-4a3d-bc60-9f67dea77fe3",
+      "name": "Webhook",
+      "webhookId": "9295b405-9343-40a2-90b9-0de289a6a847"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Applicants",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "7bb10845-27d1-4d3d-8d64-6e7c1d04d104",
+      "name": "Get row(s) in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5A0BxDiQ5qyPTnhc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst applicants = items.map(item => item.json).filter(c => c && c.applicantEmail);\n\n// 1. حساب مؤشرات الأداء الحية (KPIs)\nconst total = applicants.length;\nconst pending = applicants.filter(c => c.status === 'Pending Review').length;\nconst interviews = applicants.filter(c => c.status === 'Interview Scheduled').length;\nconst waitingList = applicants.filter(c => c.status === 'Waiting List').length;\nconst offers = applicants.filter(c => c.status === 'Offer Sent').length;\nconst rejected = applicants.filter(c => c.status === 'Auto-Rejected' || c.status === 'Post-Interview Rejected').length;\n\n// رابط مسار الأكشن\nconst actionWebhook = \"http://localhost:5678/webhook/ats-action\";\n\n// 2. دالة بناء صفوف الجداول\nfunction generateRow(c, stage) {\n  const dossier = c.fitSummary || 'No summary available.';\n  let actions = '';\n\n  if (stage === 'pending') {\n    actions = `\n      <a href=\"${actionWebhook}?action=approve_cv&email=${encodeURIComponent(c.applicantEmail)}\" class=\"btn btn-green\">Accept for Interview</a>\n      <a href=\"${actionWebhook}?action=reject_cv&email=${encodeURIComponent(c.applicantEmail)}\" class=\"btn btn-red\">Reject</a>\n    `;\n  } else if (stage === 'interview') {\n    actions = `\n      <form action=\"${actionWebhook}\" method=\"GET\" style=\"display:flex; gap:6px; align-items:center; margin:0;\">\n        <input type=\"hidden\" name=\"action\" value=\"evaluate_interview\">\n        <input type=\"hidden\" name=\"email\" value=\"${c.applicantEmail}\">\n        <input type=\"number\" name=\"score\" placeholder=\"Score (0-100)\" min=\"0\" max=\"100\" required style=\"width:90px; padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px;\">\n        <button type=\"submit\" name=\"decision\" value=\"waitlist\" class=\"btn btn-blue\">Save to Waitlist</button>\n        <button type=\"submit\" name=\"decision\" value=\"reject\" class=\"btn btn-red\">Reject</button>\n      </form>\n    `;\n  } else if (stage === 'waitlist') {\n    actions = `\n      <a href=\"${actionWebhook}?action=send_offer&email=${encodeURIComponent(c.applicantEmail)}\" class=\"btn btn-gold\">🎉 Send Offer</a>\n      <a href=\"${actionWebhook}?action=reject_waitlist&email=${encodeURIComponent(c.applicantEmail)}\" class=\"btn btn-red\">Reject</a>\n    `;\n  }\n\n  // إعداد عرض موعد المقابلة ورابط Google Meet\n  let interviewScheduleDisplay = '';\n  if (c.interviewDate) {\n    interviewScheduleDisplay = `\n      <div style=\"font-weight:600; color:#0f172a; margin-bottom:4px;\">📅 ${c.interviewDate}</div>\n      ${c.meetingLink ? `<a href=\"${c.meetingLink}\" target=\"_blank\" class=\"btn btn-meet\">🎥 Join Google Meet</a>` : '<span style=\"color:#94a3b8; font-size:11px;\">No Meet Link</span>'}\n    `;\n  } else {\n    interviewScheduleDisplay = `<span class=\"badge badge-yellow\">⏳ Awaiting Booking</span>`;\n  }\n\n  return `\n    <tr>\n      <td><strong>${c.applicantName || 'N/A'}</strong><br><small style=\"color:#64748b;\">${c.applicantEmail || ''}</small></td>\n      <td>${c.appliedPosition || 'N/A'}</td>\n      <td style=\"text-align:center;\"><span class=\"badge badge-green\">${c.finalScore || 0}%</span></td>\n      <td style=\"text-align:center;\">${stage === 'interview' ? interviewScheduleDisplay : (c.interviewScore ? `<span class=\"badge badge-purple\">${c.interviewScore}%</span>` : '<span style=\"color:#94a3b8;\">—</span>')}</td>\n      <td style=\"max-width:320px; font-size:12px; color:#475569; line-height:1.4;\">${dossier}</td>\n      <td style=\"white-space:nowrap;\">${actions}</td>\n    </tr>\n  `;\n}\n\n// 3. تصفية وتجهيز القوائم\nconst pendingHtml = applicants.filter(c => c.status === 'Pending Review').map(c => generateRow(c, 'pending')).join('') || '<tr><td colspan=\"6\" class=\"empty\">No pending CV reviews</td></tr>';\nconst interviewHtml = applicants.filter(c => c.status === 'Interview Scheduled').map(c => generateRow(c, 'interview')).join('') || '<tr><td colspan=\"6\" class=\"empty\">No scheduled interviews</td></tr>';\nconst waitlistHtml = applicants.filter(c => c.status === 'Waiting List').sort((a,b) => (Number(b.interviewScore)||0) - (Number(a.interviewScore)||0)).map(c => generateRow(c, 'waitlist')).join('') || '<tr><td colspan=\"6\" class=\"empty\">Waiting list is empty</td></tr>';\n\n// 4. بناء صفحة الويب\nconst html = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>ATS Recruitment Dashboard</title>\n  <style>\n    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; }\n    body { background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; }\n    .container { max-width: 1280px; margin: 0 auto; }\n    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }\n    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }\n    .kpi-card { background: white; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; }\n    .kpi-title { font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; }\n    .kpi-value { font-size: 26px; font-weight: bold; margin-top: 6px; }\n    .section { background: white; border-radius: 10px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }\n    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }\n    table { width: 100%; border-collapse: collapse; font-size: 13px; }\n    th { background: #f1f5f9; padding: 10px 12px; text-align: left; color: #475569; }\n    td { padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }\n    .btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; display: inline-block; }\n    .btn-green { background: #16a34a; color: white; }\n    .btn-red { background: #fee2e2; color: #dc2626; }\n    .btn-blue { background: #2563eb; color: white; }\n    .btn-gold { background: #d97706; color: white; }\n    .btn-meet { background: #0284c7; color: white; font-size: 11px; padding: 4px 8px; border-radius: 4px; }\n    .btn-refresh { background: #2563eb; color: white; padding: 8px 16px; }\n    .badge { padding: 4px 8px; border-radius: 9999px; font-weight: bold; font-size: 11px; }\n    .badge-green { background: #dcfce7; color: #15803d; }\n    .badge-purple { background: #f3e8ff; color: #7e22ce; }\n    .badge-yellow { background: #fef3c7; color: #b45309; }\n    .empty { text-align: center; color: #94a3b8; padding: 18px; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <div>\n        <h2 style=\"margin:0;\">🚀 ATS Recruitment Dashboard</h2>\n        <p style=\"margin:4px 0 0 0; color:#64748b; font-size:13px;\">Manage screening, conduct interviews, and roll out job offers.</p>\n      </div>\n      <button onclick=\"window.location.reload();\" class=\"btn btn-refresh\">🔄 Refresh Dashboard</button>\n    </div>\n\n    <!-- KPIs -->\n    <div class=\"kpi-grid\">\n      <div class=\"kpi-card\"><div class=\"kpi-title\">Total Applied</div><div class=\"kpi-value\">${total}</div></div>\n      <div class=\"kpi-card\"><div class=\"kpi-title\">Pending CVs</div><div class=\"kpi-value\" style=\"color:#d97706;\">${pending}</div></div>\n      <div class=\"kpi-card\"><div class=\"kpi-title\">Interviews Scheduled</div><div class=\"kpi-value\" style=\"color:#2563eb;\">${interviews}</div></div>\n      <div class=\"kpi-card\"><div class=\"kpi-title\">In Waiting List</div><div class=\"kpi-value\" style=\"color:#7e22ce;\">${waitingList}</div></div>\n      <div class=\"kpi-card\"><div class=\"kpi-title\">Offers Sent</div><div class=\"kpi-value\" style=\"color:#16a34a;\">${offers}</div></div>\n      <div class=\"kpi-card\"><div class=\"kpi-title\">Rejected</div><div class=\"kpi-value\" style=\"color:#dc2626;\">${rejected}</div></div>\n    </div>\n\n    <!-- 1. Waiting List Pool -->\n    <div class=\"section\" style=\"border-left: 4px solid #7e22ce;\">\n      <div class=\"section-title\">⭐ Waiting List Pool (Ranked by Interview Performance)</div>\n      <table>\n        <thead><tr><th>Candidate</th><th>Position</th><th style=\"text-align:center;\">CV Score</th><th style=\"text-align:center;\">Interview Score</th><th>Profile Summary</th><th>Final Decision</th></tr></thead>\n        <tbody>${waitlistHtml}</tbody>\n      </table>\n    </div>\n\n    <!-- 2. Post-Interview Grading & Meetings -->\n    <div class=\"section\" style=\"border-left: 4px solid #2563eb;\">\n      <div class=\"section-title\">📅 Post-Interview Evaluations (Score & Decide)</div>\n      <table>\n        <thead><tr><th>Candidate</th><th>Position</th><th style=\"text-align:center;\">CV Score</th><th style=\"text-align:center;\">Meeting & Time</th><th>Summary</th><th>Interview Grading</th></tr></thead>\n        <tbody>${interviewHtml}</tbody>\n      </table>\n    </div>\n\n    <!-- 3. Pending Review -->\n    <div class=\"section\" style=\"border-left: 4px solid #d97706;\">\n      <div class=\"section-title\">📥 Pending CV Reviews (80%+ Matches)</div>\n      <table>\n        <thead><tr><th>Candidate</th><th>Position</th><th style=\"text-align:center;\">CV Score</th><th style=\"text-align:center;\">Status</th><th>Dossier Summary</th><th>Action</th></tr></thead>\n        <tbody>${pendingHtml}</tbody>\n      </table>\n    </div>\n  </div>\n</body>\n</html>\n`;\n\nreturn [{ json: { html: html } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        32
+      ],
+      "id": "e68fddc3-8b55-4eb9-bc0b-0b261baa7344",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "=Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        368,
+        48
+      ],
+      "id": "4c2dc017-4d76-489a-9127-3c2acc5cda21",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "path": "ats-action",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -672,
+        256
+      ],
+      "id": "7cca378b-07ea-43f3-99d0-cb25943a5255",
+      "name": "Webhook1",
+      "webhookId": "46e900ed-6007-4824-bc9f-6bca34ab1391"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "478eb846-019e-485c-b276-f40df78974a5",
+              "leftValue": "={{ $('Webhook1').first().json.query.action }}",
+              "rightValue": "approve_cv",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -272,
+        256
+      ],
+      "id": "b90775e3-20f9-468d-9e87-79309afb4fb1",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "redirect",
+        "redirectURL": "http://localhost:5678/webhook/ats-dashboard",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        512,
+        256
+      ],
+      "id": "d4ba9ec6-afab-4e93-8b10-829843e63bd4",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook1').first().json.query.email }}",
+        "subject": "Invitation to Technical Interview ",
+        "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; padding: 10px;\">\n  <h2 style=\"color: #0f172a; margin-top: 0;\">Congratulations! 🎉</h2>\n  <p>Dear Candidate,</p>\n  <p>\n    We have reviewed your application and technical profile, and we are pleased to invite you to the next stage: a <strong>Technical Interview (30 Minutes)</strong>.\n  </p>\n  <p>\n    Please select the time slot that works best for you using the scheduling link below:\n  </p>\n  \n  <div style=\"margin: 25px 0;\">\n    <a href=\"https://cal.com/eslam-tag-2oybzz/job-interview?email={{ encodeURIComponent($('Webhook1').first().json.query.email) }}\" \n       style=\"background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;\">\n      📅 Book Your Interview Slot\n    </a>\n  </div>\n  \n  <p style=\"color: #64748b; font-size: 13px;\">\n    Once confirmed, you will automatically receive a Google Calendar invitation with the meeting details and video link.\n  </p>\n  <p style=\"margin-top: 24px;\">Best regards,<br><strong>Talent Acquisition Team</strong></p>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        192
+      ],
+      "id": "270a1259-90a4-4d3d-917f-76112785258a",
+      "name": "Acceptance mail",
+      "webhookId": "745f0618-d2aa-4cef-8c6c-55c624b3a394",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yO36FeWfG3BCfdab",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Applicants",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "applicantEmail": "={{ $('Webhook1').first().json.query.email }}",
+            "status": "={{ $('Webhook1').first().json.query.action === 'approve_cv' ? 'Interview Scheduled' : ($('Webhook1').first().json.query.action === 'send_offer' ? 'Offer Sent' : ($('Webhook1').first().json.query.decision === 'waitlist' ? 'Waiting List' : 'Post-Interview Rejected')) }}",
+            "interviewScore": "={{ $('Webhook1').first().json.query.score || '' }}"
+          },
+          "matchingColumns": [
+            "applicantEmail"
+          ],
+          "schema": [
+            {
+              "id": "applicantName",
+              "displayName": "applicantName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "applicantEmail",
+              "displayName": "applicantEmail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "applicantPhone",
+              "displayName": "applicantPhone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "appliedPosition",
+              "displayName": "appliedPosition",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "extractedSkills",
+              "displayName": "extractedSkills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "experienceYearsActual",
+              "displayName": "experienceYearsActual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "educationDetected",
+              "displayName": "educationDetected",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "finalScore",
+              "displayName": "finalScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fitSummary",
+              "displayName": "fitSummary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "applicationDate",
+              "displayName": "applicationDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "interviewScore",
+              "displayName": "interviewScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "interviewNotes",
+              "displayName": "interviewNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "interviewDate",
+              "displayName": "interviewDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "meetingLink",
+              "displayName": "meetingLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -480,
+        256
+      ],
+      "id": "4151eaa4-93f8-4f45-9269-4d4864523914",
+      "name": "Update row in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5A0BxDiQ5qyPTnhc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b06ce2e4-ca0e-414e-b4cd-0dc430767226",
+              "leftValue": "={{ $('Webhook1').first().json.query.action }}",
+              "rightValue": "send_offer",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        448
+      ],
+      "id": "6380b83e-d398-4a67-bbea-143e4875f4ad",
+      "name": "If Offer"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook1').first().json.query.email }}",
+        "subject": "Formal Job Offer - Congratulations! 🎉",
+        "message": "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; padding: 10px;\">   <h2 style=\"color: #15803d; margin-top: 0;\">Congratulations on Your Job Offer! 🏆</h2>   <p>Dear Candidate,</p>   <p>     Following your impressive interview performance and dossier evaluation, we are thrilled to formally extend an offer of employment to you.   </p>   <div style=\"background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;\">     <p style=\"margin: 0; color: #166534; font-weight: 600;\">       Our HR Operations team will reach out to you within 24 hours with the detailed contract, compensation package, and onboarding checklist.     </p>   </div>   <p>We are very excited about the prospect of having you join our team!</p>   <p style=\"margin-top: 24px;\">Warm regards,<br><strong>Talent Acquisition & Leadership Team</strong></p> </div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        352
+      ],
+      "id": "4e80f0f7-60ae-4423-a70e-7f4520f09db7",
+      "name": "Job Offer Mail",
+      "webhookId": "5b838af7-633f-46ca-a4a8-d91086107c08",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yO36FeWfG3BCfdab",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook1').first().json.query.email }}",
+        "subject": "Update on your application with our team",
+        "message": "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; padding: 10px;\">   <h3 style=\"color: #0f172a; margin-top: 0;\">Thank you for your time and interest</h3>   <p>Dear Candidate,</p>   <p>     Thank you very much for taking the time to speak with our team and for your interest in the position.   </p>   <p>     While your background is impressive, we have decided to move forward with another candidate whose experience more closely matches our immediate requirements.   </p>   <p>     We sincerely appreciate the effort and enthusiasm you shared with us and wish you the absolute best in your future career endeavors.   </p>   <p style=\"margin-top: 24px;\">Sincerely,<br><strong>Talent Acquisition Team</strong></p> </div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        736
+      ],
+      "id": "053540d0-fdbd-4520-a5ac-1e17d1d50930",
+      "name": "Rejection Mail",
+      "webhookId": "d66f42e4-c9d2-4b40-80ba-98d12bbd9413",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yO36FeWfG3BCfdab",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a055812e-1001-4a11-a7bf-a1f43ce93d18",
+              "leftValue": "={{ $('Webhook1').first().json.query.decision || '' }}",
+              "rightValue": "waitlist",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        200,
+        640
+      ],
+      "id": "baf3dd11-c168-4f5a-8ae3-2562da4a207b",
+      "name": "If Waitlist"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Acceptance mail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Offer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        []
+      ]
+    },
+    "Acceptance mail": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Offer": {
+      "main": [
+        [
+          {
+            "node": "Job Offer Mail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Waitlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Offer Mail": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rejection Mail": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Waitlist": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejection Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6aa6d9c6-8d88-4da5-9f99-a6517de4792e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5edcc7b1e2542b8e4fb9eaa069dbc301f5d7df6f4db1a2da4d7dc9f65e5c1ce2"
+  },
+  "nodeGroups": [],
+  "id": "mShKdpR4Dyu62M2k",
+  "tags": []
+}

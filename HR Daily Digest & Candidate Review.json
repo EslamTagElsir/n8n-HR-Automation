@@ -1,0 +1,194 @@
+{
+  "name": "HR Daily Digest & Candidate Review",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c0e7f57d-d183-4165-a569-c163152cd6ba",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Applicants",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gVDL6lanBKArkUA0QQE2OcXcGQEkyV4qbHpLAz0Jfio/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "Pending Review"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        256,
+        0
+      ],
+      "id": "a0b98ad9-b4ee-440f-9a5b-fa702588bdd8",
+      "name": "Fetch Pending Candidates",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5A0BxDiQ5qyPTnhc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f66aa5e2-baa7-4808-a6b6-3e350e31c177",
+              "leftValue": "={{ $json.applicantEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        16
+      ],
+      "id": "bf990c64-cb1f-4088-964f-e0b2b978c236",
+      "name": "Any Candidates Found?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst pendingCount = items.length;\nconst todayStr = new Date().toLocaleDateString('en-US', { \n  weekday: 'long', \n  year: 'numeric', \n  month: 'short', \n  day: 'numeric' \n});\n\n// 1. تجميع وتصنيف عدد المرشحين حسب الوظائف المتقدم إليها\nconst roleCounts = {};\nfor (const item of items) {\n  const role = item.json.appliedPosition || 'General';\n  roleCounts[role] = (roleCounts[role] || 0) + 1;\n}\n\nlet rolesBreakdownHtml = '';\nfor (const [role, count] of Object.entries(roleCounts)) {\n  rolesBreakdownHtml += `\n    <li style=\"margin-bottom: 10px; color: #334155; font-size: 14px; list-style: none;\">\n      🔹 <strong>${role}:</strong> \n      <span style=\"background-color: #dbeafe; color: #1e40af; font-weight: bold; padding: 2px 8px; border-radius: 9999px; font-size: 12px; margin-left: 6px;\">\n        ${count} Candidate${count > 1 ? 's' : ''}\n      </span>\n    </li>\n  `;\n}\n\n// 2. رابط الداشبورد التفاعلي الخاص بالورك فلو 3 (Workflow 3)\n// استبدل الدومين برابط سيرفر الـ n8n الخاص بك\nconst dashboardUrl = \"https://your-n8n-instance.com/webhook/ats-dashboard\";\n\n// 3. تصميم بريد إشعار تنبيهي أنيق وعصري\nconst htmlBody = `\n<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"></head>\n<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px 15px;\">\n  <div style=\"max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);\">\n    \n    <!-- Header -->\n    <div style=\"background-color: #0f172a; color: #ffffff; padding: 24px; text-align: center;\">\n      <h2 style=\"margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.3px;\">⚡ Daily Recruitment Digest</h2>\n      <p style=\"margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;\">${todayStr}</p>\n    </div>\n\n    <!-- Body Content -->\n    <div style=\"padding: 28px 24px;\">\n      <p style=\"margin: 0 0 18px 0; color: #1e293b; font-size: 15px; line-height: 1.5;\">\n        Good morning! You have <strong>${pendingCount}</strong> qualified candidate(s) awaiting your decision today.\n      </p>\n\n      <!-- Roles Breakdown Box -->\n      <div style=\"background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;\">\n        <span style=\"font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 12px;\">\n          📊 Candidates by Role:\n        </span>\n        <ul style=\"padding: 0; margin: 0;\">\n          ${rolesBreakdownHtml}\n        </ul>\n      </div>\n\n      <!-- Call to Action Button to Workflow 3 Dashboard -->\n      <div style=\"text-align: center; margin: 30px 0 10px 0;\">\n        <a href=\"${dashboardUrl}\" target=\"_blank\" style=\"background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);\">\n          🚀 Open ATS Web Dashboard\n        </a>\n      </div>\n\n      <p style=\"text-align: center; color: #64748b; font-size: 12px; margin-top: 14px;\">\n        Review CV summaries, evaluate interviews, and manage the waiting list directly inside the dashboard.\n      </p>\n    </div>\n\n    <!-- Footer -->\n    <div style=\"background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px; text-align: center; color: #94a3b8; font-size: 11px;\">\n      Automated via n8n Recruitment System &bull; Daily HR Alert\n    </div>\n\n  </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    pendingCount,\n    todayStr,\n    htmlBody\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -32
+      ],
+      "id": "59a7c606-d9a5-4f1f-b7af-6eeb9ef0e05c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "eslam.tagelsir20@gmail.com",
+        "subject": "=={{ '📋 Daily ATS Alert: ' + $json.pendingCount + ' Pending Candidates (' + $json.todayStr + ')' }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        -80
+      ],
+      "id": "b92693b5-ed81-420a-a66c-5048e60c116e",
+      "name": "Send a message",
+      "webhookId": "42403e95-9773-4a7b-9be6-c5a3858e2fbe",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yO36FeWfG3BCfdab",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Candidates": {
+      "main": [
+        [
+          {
+            "node": "Any Candidates Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Candidates Found?": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "77f07c49-bab8-407f-bf51-8bba254d539f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5edcc7b1e2542b8e4fb9eaa069dbc301f5d7df6f4db1a2da4d7dc9f65e5c1ce2"
+  },
+  "nodeGroups": [],
+  "id": "YRI0wxzmpvnLfAXR",
+  "tags": []
+}
