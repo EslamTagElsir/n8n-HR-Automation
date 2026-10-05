@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF6D5A"/>
+      <stop offset="100%" stop-color="#FF9A5C"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="300" fill="url(#bg)" rx="12"/>
+  
+  <!-- Decorative grid dots -->
+  <g opacity="0.08" fill="white">
+    <circle cx="50" cy="50" r="2"/><circle cx="100" cy="50" r="2"/><circle cx="150" cy="50" r="2"/><circle cx="200" cy="50" r="2"/><circle cx="250" cy="50" r="2"/>
+    <circle cx="50" cy="100" r="2"/><circle cx="100" cy="100" r="2"/><circle cx="150" cy="100" r="2"/><circle cx="200" cy="100" r="2"/><circle cx="250" cy="100" r="2"/>
+    <circle cx="50" cy="150" r="2"/><circle cx="100" cy="150" r="2"/><circle cx="150" cy="150" r="2"/><circle cx="200" cy="150" r="2"/><circle cx="250" cy="150" r="2"/>
+    <circle cx="50" cy="200" r="2"/><circle cx="100" cy="200" r="2"/><circle cx="150" cy="200" r="2"/><circle cx="200" cy="200" r="2"/><circle cx="250" cy="200" r="2"/>
+    <circle cx="50" cy="250" r="2"/><circle cx="100" cy="250" r="2"/><circle cx="150" cy="250" r="2"/><circle cx="200" cy="250" r="2"/><circle cx="250" cy="250" r="2"/>
+    <circle cx="950" cy="50" r="2"/><circle cx="1000" cy="50" r="2"/><circle cx="1050" cy="50" r="2"/><circle cx="1100" cy="50" r="2"/><circle cx="1150" cy="50" r="2"/>
+    <circle cx="950" cy="100" r="2"/><circle cx="1000" cy="100" r="2"/><circle cx="1050" cy="100" r="2"/><circle cx="1100" cy="100" r="2"/><circle cx="1150" cy="100" r="2"/>
+    <circle cx="950" cy="150" r="2"/><circle cx="1000" cy="150" r="2"/><circle cx="1050" cy="150" r="2"/><circle cx="1100" cy="150" r="2"/><circle cx="1150" cy="150" r="2"/>
+    <circle cx="950" cy="200" r="2"/><circle cx="1000" cy="200" r="2"/><circle cx="1050" cy="200" r="2"/><circle cx="1100" cy="200" r="2"/><circle cx="1150" cy="200" r="2"/>
+    <circle cx="950" cy="250" r="2"/><circle cx="1000" cy="250" r="2"/><circle cx="1050" cy="250" r="2"/><circle cx="1100" cy="250" r="2"/><circle cx="1150" cy="250" r="2"/>
+  </g>
+
+  <!-- Decorative circles -->
+  <circle cx="900" cy="60" r="80" fill="url(#accent)" opacity="0.06"/>
+  <circle cx="1050" cy="200" r="120" fill="url(#blue)" opacity="0.05"/>
+  <circle cx="300" cy="250" r="60" fill="url(#accent)" opacity="0.04"/>
+  
+  <!-- n8n icon (simplified) -->
+  <g transform="translate(380, 85)">
+    <rect width="50" height="50" rx="12" fill="url(#accent)"/>
+    <text x="25" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="white">n8n</text>
+  </g>
+  
+  <!-- Main title -->
+  <text x="450" y="125" font-family="'Segoe UI', Arial, sans-serif" font-size="42" font-weight="bold" fill="white">HR Automation</text>
+  
+  <!-- Subtitle -->
+  <text x="385" y="165" font-family="'Segoe UI', Arial, sans-serif" font-size="18" fill="#94a3b8">AI-Powered Applicant Tracking System</text>
+  
+  <!-- Feature pills -->
+  <g transform="translate(385, 190)">
+    <rect width="120" height="28" rx="14" fill="#FF6D5A" opacity="0.15"/>
+    <text x="60" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#FF9A5C">🤖 AI Evaluation</text>
+  </g>
+  <g transform="translate(520, 190)">
+    <rect width="130" height="28" rx="14" fill="#3b82f6" opacity="0.15"/>
+    <text x="65" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#60a5fa">📊 Auto Scoring</text>
+  </g>
+  <g transform="translate(665, 190)">
+    <rect width="130" height="28" rx="14" fill="#22c55e" opacity="0.15"/>
+    <text x="65" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#4ade80">📧 Email Workflows</text>
+  </g>
+  
+  <!-- Bottom tagline -->
+  <text x="600" y="265" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#64748b">Form → AI Screening → Dashboard → Interview → Offer — Fully Automated</text>
+</svg>
