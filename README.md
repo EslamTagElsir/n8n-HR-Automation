@@ -43,6 +43,8 @@ This project automates the **entire recruitment lifecycle** — from the moment 
 
 ### What it does
 
+<p align="center"><img src="assets/workflow-overview.svg" alt="Overview of the four connected HR automation workflows" width="100%"></p>
+
 1. **Candidate applies** via a web form (uploads PDF resume)
 2. **AI evaluates** the CV against job-specific skill requirements
 3. **Automatic routing** — scores ≥80 go to HR review; scores below 80 are currently auto-rejected
