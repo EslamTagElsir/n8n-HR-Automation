@@ -45,7 +45,7 @@ This project automates the **entire recruitment lifecycle** — from the moment 
 
 1. **Candidate applies** via a web form (uploads PDF resume)
 2. **AI evaluates** the CV against job-specific skill requirements
-3. **Automatic routing** — high scorers go to HR review, low scorers get auto-rejected
+3. **Automatic routing** — scores ≥80 go to HR review; scores below 80 are currently auto-rejected
 4. **HR reviews candidates** on a real-time web dashboard with one-click actions
 5. **Interviews are scheduled** via Cal.com, with auto-synced Google Meet links
 6. **Daily email digest** keeps the hiring manager informed
@@ -110,7 +110,7 @@ The core pipeline that processes job applications end-to-end:
 - Sends to AI (via OpenRouter) for skill extraction against the job description
 - Computes a weighted final score locally (no AI for math)
 - Logs all results to Google Sheets
-- Routes candidates: ≥80 → Pending Review, <80 → Auto-Reject with email
+- Routes candidates: ≥80 → Pending Review, <80 → Auto-Rejected with email
 
 ### Workflow 2 — Interview Booking Sync
 > **File:** [`workflows/ATS - Interview Booking Sync.json`](workflows/ATS%20-%20Interview%20Booking%20Sync.json)
@@ -159,7 +159,7 @@ An automated morning briefing for the hiring manager:
 
 ## 📐 Scoring Algorithm
 
-The system computes a **deterministic score out of 100** (no AI randomness for math):
+The system computes a **deterministic score out of 100** (the AI extracts CV evidence; the weighted arithmetic and routing thresholds are applied in code):
 
 ```
 Final Score = (Skills% × 0.60) + (Experience% × 0.30) + (Education% × 0.10) + Nice-to-Have Bonus
@@ -171,13 +171,15 @@ Where:
   Bonus        = up to 10% for nice-to-have skills matched
 ```
 
-### Decision Zones
+### Decision Zones and actual routing
+
+The `zone` field is a recommendation label, while the `status` field controls the current workflow route. These are not fully aligned for scores below 80: the current code assigns `manual_review` to 60–79, but sets **every score below 80** to `Auto-Rejected`. Only scores of 80 or higher enter the HR `Pending Review` queue. The table below documents the implementation as it exists today.
 
 | Score | Zone | Action |
 |-------|------|--------|
-| **80–100** | 🟢 Auto-Approve | Sent to HR for manual review |
-| **60–79** | 🟡 Manual Review | Requires HR decision |
-| **0–59** | 🔴 Auto-Reject | Rejection email sent automatically |
+| **80–100** | 🟢 Strong Match (`auto_approve`) | **Pending Review** — sent to HR for a human decision; not an automatic approval |
+| **60–79** | 🟡 Good Match (`manual_review`) | The score metadata says `manual_review`, but the current workflow still sets the candidate status to **Auto-Rejected** and follows the rejection path |
+| **0–59** | 🔴 Weak Match (`auto_reject`) | **Auto-Rejected** with a rejection email |
 
 ---
 
